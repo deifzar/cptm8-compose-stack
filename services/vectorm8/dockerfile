@@ -1,0 +1,18 @@
+FROM timberio/vector:0.41.1-debian
+
+# Install basic tools for secret handling
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create entrypoint script to read Docker secrets
+RUN echo '#!/bin/bash\n\
+	# Read password from Docker secret if file exists\n\
+	if [ -f "$OPENSEARCH_PASSWORD_FILE" ]; then\n\
+	    export OPENSEARCH_PASSWORD=$(cat "$OPENSEARCH_PASSWORD_FILE")\n\
+	fi\n\
+	\n\
+	# Start Vector\n\
+	exec vector "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

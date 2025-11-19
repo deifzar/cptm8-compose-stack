@@ -1,0 +1,96 @@
+.env
+
+# secrets folder
+secrets/*
+!secrets/.gitkeep
+
+# ASMM8
+services/asmm8/app/configs/*
+!services/asmm8/app/configs/configuration_template.yaml
+
+services/asmm8/app/log/*
+!services/asmm8/app/log/.gitkeep
+
+services/asmm8/app/tmp/*
+!services/asmm8/app/tmp/.gitkeep
+
+services/asmm8/app/wordlist/*
+!services/asmm8/app/wordlist/subdomainslite.txt
+
+# NAABUM8
+services/naabum8/app/configs/*
+!services/naabum8/app/configs/configuration_template.yaml
+
+services/naabum8/app/log/*
+!services/naabum8/app/log/.gitkeep
+
+services/naabum8/app/tmp/*
+!services/naabum8/app/tmp/.gitkeep
+
+# KATANAM8
+services/katanam8/app/configs/*
+!services/katanam8/app/configs/configuration_template.yaml
+
+services/katanam8/app/log/*
+!services/katanam8/app/log/.gitkeep
+
+services/katanam8/app/tmp/*
+!services/katanam8/app/tmp/.gitkeep
+
+# NUM8
+services/num8/app/configs/*
+!services/num8/app/configs/configuration_template.yaml
+
+services/num8/app/log/*
+!services/num8/app/log/.gitkeep
+
+services/num8/app/tmp/*
+!services/num8/app/tmp/.gitkeep
+
+# REPORTINGM8
+services/reportingm8/app/configs/*
+!services/reportingm8/app/configs/configuration_template.yaml
+
+services/reportingm8/app/log/*
+!services/reportingm8/app/log/.gitkeep
+
+services/reportingm8/app/tmp/*
+!services/reportingm8/app/tmp/.gitkeep
+
+# ORCHESTRATORM8
+services/orchestratorm8/app/configs/*
+!services/orchestratorm8/app/configs/configuration_template.yaml
+
+services/orchestratorm8/app/log/*
+!services/orchestratorm8/app/log/.gitkeep
+
+services/orchestratorm8/app/tmp/*
+!services/orchestratorm8/app/tmp/.gitkeep
+
+#SOCKETM8
+services/socketm8/*
+!services/socketm8/README.md
+
+#DASHBOARDM8
+services/dashboardm8/*
+!services/dashboardm8/README.md
+
+#RABBITMQ
+services/rabbitmqm8/advanced.config
+services/rabbitmqm8/rabbitmq-env.conf
+
+#OPENSEARCH
+services/opensearchm8/internal_users.yml
+
+#OPENSEARCHDASHBOARD
+services/opensearchdashboardm8/opensearch_dashboards.yml
+
+#VECTORM8
+
+#SCRIPTS
+build_and_copy_service_binaries_from_projects.sh
+commit_ECR.sh
+
+# AI
+.claude/*
+CLAUDE.md

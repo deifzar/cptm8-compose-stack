@@ -1,0 +1,146 @@
+api:
+  enabled: true
+  address: "0.0.0.0:8686"
+sources:
+  orchestratorm8:
+    type: "file"
+    data_dir: "/var/log/orchestratorm8"
+    exclude:
+      - "/var/log/orchestratorm8/orchestratorm8-*.log"
+      - "/var/log/orchestratorm8/orchestratorm8-*.log.gz"
+    # file_key: assm8.log
+    # glob_minimum_cooldown_ms: 1000
+    # host_key:
+    # ignore_older_secs: 600
+    include:
+      - "/var/log/orchestratorm8/orchestratorm8.log"
+    # line_delimiter: "\n"
+    # max_line_bytes: 102400
+    # max_read_bytes: 2048
+    # offset_key: offset
+    # read_from: beginning
+    # remove_after_secs:
+    # rotate_wait_secs: 9.223372036854776e+18
+  asmm8:
+    type: "file"
+    data_dir: "/var/log/asmm8"
+    exclude:
+      - "/var/log/asmm8/asmm8-*.log"
+      - "/var/log/asmm8/asmm8-*.log.gz"
+    # file_key: assm8.log
+    # glob_minimum_cooldown_ms: 1000
+    # host_key:
+    # ignore_older_secs: 600
+    include:
+      - "/var/log/asmm8/asmm8.log"
+    # line_delimiter: "\n"
+    # max_line_bytes: 102400
+    # max_read_bytes: 2048
+    # offset_key: offset
+    # read_from: beginning
+    # remove_after_secs:
+    # rotate_wait_secs: 9.223372036854776e+18
+  naabum8:
+    type: "file"
+    data_dir: "/var/log/naabum8"
+    exclude:
+      - "/var/log/naabum8/naabum8-*.log"
+      - "/var/log/naabum8/naabum8-*.log.gz"
+    # file_key: naabum8.log
+    # glob_minimum_cooldown_ms: 1000
+    # host_key:
+    # ignore_older_secs: 86400     # 1 day
+    include:
+      - "/var/log/naabum8/naabum8.log"
+    # line_delimiter: "\n"
+    # max_line_bytes: 102400
+    # max_read_bytes: 2048
+    # offset_key: offset
+    # read_from: beginning
+    # remove_after_secs:
+    # rotate_wait_secs: 9.223372036854776e+18
+  katanam8:
+    type: "file"
+    data_dir: "/var/log/katanam8"
+    exclude:
+      - "/var/log/katanam8/katanam8-*.log"
+      - "/var/log/katanam8/katanam8-*.log.gz"
+    # file_key: katanam8.log
+    # glob_minimum_cooldown_ms: 1000
+    # host_key:
+    # ignore_older_secs: 600
+    include:
+      - "/var/log/katanam8/katanam8.log"
+    # line_delimiter: "\n"
+    # max_line_bytes: 102400
+    # max_read_bytes: 2048
+    # offset_key: offset
+    # read_from: beginning
+    # remove_after_secs:
+    # rotate_wait_secs: 9.223372036854776e+18
+  num8:
+    type: "file"
+    data_dir: "/var/log/num8"
+    exclude:
+      - "/var/log/num8/num8-*.log"
+      - "/var/log/num8/num8-*.log.gz"
+    # file_key: num8.log
+    # glob_minimum_cooldown_ms: 1000
+    # host_key:
+    # ignore_older_secs: 600
+    include:
+      - "/var/log/num8/num8.log"
+    # line_delimiter: "\n"
+    # max_line_bytes: 102400
+    # max_read_bytes: 2048
+    # offset_key: offset
+    # read_from: beginning
+    # remove_after_secs:
+    # rotate_wait_secs: 9.223372036854776e+18
+  reportingm8:
+    type: "file"
+    data_dir: "/var/log/reportingm8"
+    exclude:
+      - "/var/log/reportingm8/reportingm8-*.log"
+      - "/var/log/reportingm8/reportingm8-*.log.gz"
+    # file_key: reportingm8.log
+    # glob_minimum_cooldown_ms: 1000
+    # host_key:
+    # ignore_older_secs: 600
+    include:
+      - "/var/log/reportingm8/reportingm8.log"
+    # line_delimiter: "\n"
+    # max_line_bytes: 102400
+    # max_read_bytes: 2048
+    # offset_key: offset
+    # read_from: beginning
+    # remove_after_secs:
+    # rotate_wait_secs: 9.223372036854776e+18
+sinks:
+  sink_opensearch:
+    type: "elasticsearch"
+    inputs:
+      - "orchestratorm8"
+      - "asmm8"
+      - "naabum8"
+      - "katanam8"
+      - "num8"
+      - "reportingm8"
+    api_version: "v7"
+    auth:
+      strategy: "basic"
+      user: "${OPENSEARCH_USER}"
+      password: "${OPENSEARCH_PASSWORD}"
+    compression: "none"
+    endpoints:
+      - "https://opensearch-node1:9200"
+      - "https://opensearch-node2:9200"
+    tls:
+        verify_certificate: false
+    bulk:
+      index: "cptm8" # daily indices
+    # id_key: id
+    # mode: bulk
+    # pipeline: opensearch-pipeline-name
+    # query:
+    #   X-Powered-By: Vector

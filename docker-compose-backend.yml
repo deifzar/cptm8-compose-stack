@@ -1,0 +1,756 @@
+name: cptm8-backend
+services:
+  # RabbitMQ Message service
+  rabbitmqm8:
+    container_name: cptm8-rabbitmqm8
+    build:
+      context: services/rabbitmqm8
+    hostname: my-rabbit
+    ports:
+      - 15680:15672
+    expose:
+      - "15672/tcp"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 30s
+      retries: 5
+      start_period: 5s
+      timeout: 30s
+    networks:
+      cptm8_network:
+        aliases:
+          - "${RABBITMQ_HOSTNAME}"
+    restart: on-failure:3
+
+  # PostgreSQL Database
+  postgresqlm8:
+    container_name: cptm8-postgresql
+    hostname: postgresql-1
+    ports: # Remove in PROD
+      - 5442:5432 # Remove in PROD
+    build:
+      context: services/postgresqlm8
+      dockerfile: dockerfile
+    environment:
+      # POSTGRES_USER: ${POSTGRESQL_POSTGRES_ROOT_USER}  the default user of 'postgres' will be used
+      POSTGRES_DB: ${POSTGRESQL_DB}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgresql_root_password
+    secrets:
+      - postgresql_root_password
+      - postgresql_user_password
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+      - ./services/postgresqlm8/init0.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+      - ./services/postgresqlm8/init1.sql:/docker-entrypoint-initdb.d/20-init.sql:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d ${POSTGRESQL_DB} && psql -U postgres -d ${POSTGRESQL_DB} -c 'SELECT 1;' > /dev/null 2>&1",
+        ]
+      interval: 10s
+      retries: 5
+      start_period: 60s
+      timeout: 10s
+    networks:
+      cptm8_network:
+        ipv4_address: 172.25.0.6
+        aliases:
+          - ${POSTGRESQL_HOSTNAME}
+    restart: on-failure:3
+
+  # MongoDB Primary Node
+  mongodb-1:
+    container_name: cptm8-mongodb-1
+    hostname: mongodb-1
+    build:
+      context: services/mongodbm8
+      dockerfile: dockerfile
+    command:
+      [
+        "--replSet",
+        "rs0",
+        "--bind_ip",
+        "172.25.0.7,mongodb-1",
+        "--port",
+        "27017",
+        "--keyFile",
+        "/etc/mongodb/pki/keyfile",
+      ]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongodb_root_password
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+      MONGO_NON_ROOT_USERNAME: ${MONGO_NON_ROOT_USERNAME}
+      MONGO_NON_ROOT_PASSWORD_FILE: /run/secrets/mongodb_user_password
+      MONGO_INITDB_COLLECTION: ${MONGO_INITDB_COLLECTION}
+    secrets:
+      - mongodb_root_password
+      - mongodb_user_password
+    volumes:
+      - mongodb_1_data:/data/db
+      - mongodb_1_config:/data/configdb
+      - mongodb_1_shared:/data
+      - ./services/mongodbm8/rs_keyfile:/etc/mongodb/pki/keyfile:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --host mongodb-1:27017 --username $${MONGO_INITDB_ROOT_USERNAME} --password $$(cat /run/secrets/mongodb_root_password) --eval 'db.runCommand({ismaster: 1})' --quiet || exit 1",
+        ]
+      retries: 30
+      interval: 30s
+      start_period: 60s
+      timeout: 30s
+    networks:
+      cptm8_network:
+        ipv4_address: 172.25.0.7
+        aliases:
+          - ${MONGODB1_HOSTNAME}
+    ports:
+      - "27017:27017" # Remove in production
+    restart: on-failure:3
+
+  # MongoDB Secondary Node 1
+  mongodb-2:
+    container_name: cptm8-mongodb-2
+    hostname: mongodb-2
+    build:
+      context: services/mongodbm8
+      dockerfile: dockerfile
+    command:
+      [
+        "--replSet",
+        "rs0",
+        "--bind_ip",
+        "172.25.0.8,mongodb-2",
+        "--port",
+        "27018",
+        "--keyFile",
+        "/etc/mongodb/pki/keyfile",
+      ]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongodb_root_password
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+      MONGO_NON_ROOT_USERNAME: ${MONGO_NON_ROOT_USERNAME}
+      MONGO_NON_ROOT_PASSWORD_FILE: /run/secrets/mongodb_user_password
+      MONGO_INITDB_COLLECTION: ${MONGO_INITDB_COLLECTION}
+    secrets:
+      - mongodb_root_password
+      - mongodb_user_password
+    volumes:
+      - mongodb_2_data:/data/db
+      - mongodb_2_config:/data/configdb
+      - mongodb_2_shared:/data
+      - ./services/mongodbm8/rs_keyfile:/etc/mongodb/pki/keyfile:ro
+    networks:
+      cptm8_network:
+        ipv4_address: 172.25.0.8
+        aliases:
+          - ${MONGODB2_HOSTNAME}
+    ports:
+      - "27018:27017" # Remove in production
+    # Remove dependency - let all MongoDB nodes start simultaneously
+    restart: on-failure:3
+
+  # MongoDB Secondary Node 2
+  mongodb-3:
+    container_name: cptm8-mongodb-3
+    hostname: mongodb-3
+    build:
+      context: services/mongodbm8
+      dockerfile: dockerfile
+    command:
+      [
+        "--replSet",
+        "rs0",
+        "--bind_ip",
+        "172.25.0.9,mongodb-3",
+        "--port",
+        "27019",
+        "--keyFile",
+        "/etc/mongodb/pki/keyfile",
+      ]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongodb_root_password
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+      MONGO_NON_ROOT_USERNAME: ${MONGO_NON_ROOT_USERNAME}
+      MONGO_NON_ROOT_PASSWORD_FILE: /run/secrets/mongodb_user_password
+      MONGO_INITDB_COLLECTION: ${MONGO_INITDB_COLLECTION}
+    secrets:
+      - mongodb_root_password
+      - mongodb_user_password
+    volumes:
+      - mongodb_3_data:/data/db
+      - mongodb_3_config:/data/configdb
+      - mongodb_3_shared:/data
+      - ./services/mongodbm8/rs_keyfile:/etc/mongodb/pki/keyfile:ro
+    networks:
+      cptm8_network:
+        ipv4_address: 172.25.0.9
+        aliases:
+          - ${MONGODB3_HOSTNAME}
+    ports:
+      - "27019:27017" # Remove in production
+    # Remove dependency - let all MongoDB nodes start simultaneously
+    restart: on-failure:3
+
+  # MongoDB Replica Set Initializer
+  mongodb-init:
+    container_name: cptm8-mongodb-init
+    build:
+      context: services/mongodbm8
+      dockerfile: dockerfile
+    depends_on:
+      - mongodb-1
+      - mongodb-2
+      - mongodb-3
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongodb_root_password
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+      MONGO_NON_ROOT_USERNAME: ${MONGO_NON_ROOT_USERNAME}
+      MONGO_NON_ROOT_PASSWORD_FILE: /run/secrets/mongodb_user_password
+      MONGO_INITDB_COLLECTION: ${MONGO_INITDB_COLLECTION}
+    secrets:
+      - mongodb_root_password
+      - mongodb_user_password
+    networks:
+      - cptm8_network
+    command: |
+      bash -c "
+        echo 'Waiting for MongoDB nodes to be ready...'
+        sleep 30
+
+        echo 'Initializing replica set...'
+        mongosh --host mongodb-1:27017 --username $${MONGO_INITDB_ROOT_USERNAME} --password $$(cat /run/secrets/mongodb_root_password) --eval '
+          rs.initiate({
+            _id: \"rs0\",
+            members: [
+              {_id: 0, host: \"mongodb-1:27017\", priority: 3},
+              {_id: 1, host: \"mongodb-2:27018\", priority: 2},
+              {_id: 2, host: \"mongodb-3:27019\", priority: 1}
+            ]
+          })
+        ' || echo 'Replica set may already be initialized'
+
+        echo 'Waiting for replica set to elect primary...'
+        timeout=60
+        elapsed=0
+        while [ $$elapsed -lt $$timeout ]; do
+          echo 'Checking if primary is available...'
+          if mongosh --host mongodb-1:27017 --username $${MONGO_INITDB_ROOT_USERNAME} --password $$(cat /run/secrets/mongodb_root_password) --eval 'rs.isMaster().ismaster' --quiet 2>/dev/null | grep -q true; then
+            echo 'Primary node is ready!'
+            break
+          fi
+          echo 'Waiting for primary election... ($$elapsed/$$timeout seconds)'
+          sleep 5
+          elapsed=$$((elapsed + 5))
+        done
+
+        if [ $$elapsed -ge $$timeout ]; then
+          echo 'Timeout waiting for primary election'
+          exit 1
+        fi
+
+        echo 'Creating database and user...'
+        mongosh --host mongodb-1:27017 --username $${MONGO_INITDB_ROOT_USERNAME} --password $$(cat /run/secrets/mongodb_root_password) --eval \"
+          db = db.getSiblingDB('$${MONGO_INITDB_DATABASE}');
+          db.createCollection('$${MONGO_INITDB_COLLECTION}');
+          db.createUser({
+            user: '$${MONGO_NON_ROOT_USERNAME}',
+            pwd: '$$(cat /run/secrets/mongodb_user_password)',
+            mechanisms: ['SCRAM-SHA-256'],
+            roles: [{role: 'dbOwner', db: '$${MONGO_INITDB_DATABASE}'}]
+          });
+          print('Database and user created successfully');
+        \"
+
+        echo 'Replica set initialization completed'
+      "
+    restart: "no"
+
+  opensearch-node1:
+    container_name: opensearch-node1
+    build:
+      context: services/opensearchm8
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node1
+      - discovery.seed_hosts=opensearch-node1,opensearch-node2
+      - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2
+      - bootstrap.memory_lock=true # along with the memlock settings below, disables swapping
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m # minimum and maximum Java heap size, recommend setting both to 50% of system RAM
+      # - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}    # Sets the demo admin user password when using demo configuration, required for OpenSearch 2.12 and higher
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536 # maximum number of open files for the OpenSearch user, set to at least 65536 on modern systems
+        hard: 65536
+    volumes:
+      - opensearch_data1:/usr/share/opensearch/data
+      - ./services/opensearchm8/internal_users.yml:/usr/share/opensearch/config/opensearch-security/internal_users.yml
+    ports:
+      - 9200:9200
+      - 9600:9600 # required for Performance Analyzer
+    # expose:
+    #   - '9200/tcp'
+    #   - '9600/tcp'
+    networks:
+      cptm8_network:
+        aliases:
+          - ${OPENSEARCH1_HOSTNAME}
+  opensearch-node2:
+    container_name: opensearch-node2
+    build:
+      context: services/opensearchm8
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node2
+      - discovery.seed_hosts=opensearch-node1,opensearch-node2
+      - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms8192m -Xmx8192m
+      # - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch_data2:/usr/share/opensearch/data
+      - ./services/opensearchm8/internal_users.yml:/usr/share/opensearch/config/opensearch-security/internal_users.yml
+    # ports:
+    #   - 9200:9200
+    networks:
+      cptm8_network:
+        aliases:
+          - "${OPENSEARCH2_HOSTNAME}"
+  opensearch-dashboard:
+    container_name: opensearch-dashboard
+    build:
+      context: services/opensearchdashboardm8
+    ports:
+      - 5601:5601
+    expose:
+      - "5601"
+    environment:
+      OPENSEARCH_HOSTS: '["https://opensearch-node1:9200","https://opensearch-node2:9200"]'
+    networks:
+      cptm8_network:
+        aliases:
+          - ${OPENSEARCH_DASHBOARD_HOSTNAME}
+  vectorm8:
+    container_name: vectorm8
+    restart: always
+    build:
+      context: services/vectorm8
+    environment:
+      - OPENSEARCH_USER=admin
+      - OPENSEARCH_PASSWORD_FILE=/run/secrets/opensearch_admin_password
+    secrets:
+      - opensearch_admin_password
+    volumes:
+      - ./services/orchestratorm8/app/log:/var/log/orchestratorm8
+      - ./services/asmm8/app/log:/var/log/asmm8
+      - ./services/naabum8/app/log:/var/log/naabum8
+      - ./services/katanam8/app/log:/var/log/katanam8
+      - ./services/num8/app/log:/var/log/num8
+      - ./services/reportingm8/app/log:/var/log/reportingm8
+      - ./services/vectorm8/vector.yaml:/etc/vector/vector.yaml:ro
+    ports:
+      - 8686:8686
+    expose:
+      - "8686"
+    networks:
+      cptm8_network:
+        aliases:
+          - ${VECTOR_HOSTNAME}
+    depends_on:
+      opensearch-node1:
+        condition: service_started
+      opensearch-node2:
+        condition: service_started
+  # Scanner services
+  orchestratorm8:
+    container_name: orchestratorm8
+    build:
+      context: services/orchestratorm8
+    environment:
+      SERVICEM8_NAME: "orchestratorm8"
+      RABBITMQ_HOSTNAME: ${RABBITMQ_HOSTNAME}
+      POSTGRESQL_HOSTNAME: ${POSTGRESQL_HOSTNAME}
+      POSTGRESQL_USERNAME: ${POSTGRESQL_NON_ROOT_USERNAME}
+      POSTGRESQL_DB: ${POSTGRESQL_DB}
+      ASMM8_HOSTNAME: ${ASMM8_HOSTNAME}
+      ASMM8_URL: ${ASMM8_URL}
+      NAABUM8_HOSTNAME: ${NAABUM8_HOSTNAME}
+      NAABUM8_URL: ${NAABUM8_URL}
+      KATANAM8_HOSTNAME: ${KATANAM8_HOSTNAME}
+      KATANAM8_URL: ${KATANAM8_URL}
+      NUM8_HOSTNAME: ${NUM8_HOSTNAME}
+      NUM8_URL: ${NUM8_URL}
+    secrets:
+      - postgresql_user_password
+      - rabbitmq_username
+      - rabbitmq_password
+    ports:
+      - 8005:8005
+    expose:
+      - "8005/tcp"
+    volumes:
+      - ./services/orchestratorm8/app/log:/app/log
+      - ./services/orchestratorm8/app/tmp:/app/tmp
+      - ./services/orchestratorm8/app/configs:/app/configs
+    depends_on:
+      rabbitmqm8:
+        condition: service_healthy
+        restart: true
+      postgresqlm8:
+        condition: service_healthy
+        restart: true
+      asmm8:
+        condition: service_healthy
+        restart: true
+    networks:
+      - cptm8_network
+    restart: on-failure:3
+  asmm8:
+    container_name: asmm8
+    build:
+      context: services/asmm8
+    environment:
+      SERVICEM8_NAME: "asmm8"
+      RABBITMQ_HOSTNAME: ${RABBITMQ_HOSTNAME}
+      POSTGRESQL_HOSTNAME: ${POSTGRESQL_HOSTNAME}
+      POSTGRESQL_USERNAME: ${POSTGRESQL_NON_ROOT_USERNAME}
+      POSTGRESQL_DB: ${POSTGRESQL_DB}
+      ASMM8_HOSTNAME: ${ASMM8_HOSTNAME}
+      ASMM8_URL: ${ASMM8_URL}
+      NAABUM8_HOSTNAME: ${NAABUM8_HOSTNAME}
+      NAABUM8_URL: ${NAABUM8_URL}
+    secrets:
+      - postgresql_user_password
+      - rabbitmq_username
+      - rabbitmq_password
+    ports:
+      - 8000:8000
+    expose:
+      - "8000/tcp"
+    # Wordlist is baked into the image
+    volumes:
+      - ./services/asmm8/app/log:/app/log
+      - ./services/asmm8/app/tmp:/app/tmp
+      - ./services/asmm8/app/configs:/app/configs
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "netstat -an | grep -c 8000 > /dev/null; if [ 0 != $? ]; then exit 1; else exit 0; fi",
+        ]
+      interval: 30s
+      retries: 10
+      start_period: 5s
+      timeout: 30s
+    depends_on:
+      rabbitmqm8:
+        condition: service_healthy
+        restart: true
+      postgresqlm8:
+        condition: service_healthy
+        restart: true
+      naabum8:
+        condition: service_healthy
+        restart: true
+    networks:
+      cptm8_network:
+        aliases:
+          - ${ASMM8_HOSTNAME}
+    restart: on-failure:3
+  naabum8:
+    container_name: naabum8
+    build:
+      context: services/naabum8
+    environment:
+      SERVICEM8_NAME: "naabum8"
+      RABBITMQ_HOSTNAME: ${RABBITMQ_HOSTNAME}
+      POSTGRESQL_HOSTNAME: ${POSTGRESQL_HOSTNAME}
+      POSTGRESQL_USERNAME: ${POSTGRESQL_NON_ROOT_USERNAME}
+      POSTGRESQL_DB: ${POSTGRESQL_DB}
+      NAABUM8_HOSTNAME: ${NAABUM8_HOSTNAME}
+      NAABUM8_URL: ${NAABUM8_URL}
+      KATANAM8_HOSTNAME: ${KATANAM8_HOSTNAME}
+      KATANAM8_URL: ${KATANAM8_URL}
+    secrets:
+      - postgresql_user_password
+      - rabbitmq_username
+      - rabbitmq_password
+    cap_add:
+      - ALL
+    ports:
+      - 8001:8001
+    expose:
+      - "8001/tcp"
+    volumes:
+      - ./services/naabum8/app/log:/app/log
+      - ./services/naabum8/app/tmp:/app/tmp
+      - ./services/naabum8/app/configs:/app/configs
+    networks:
+      cptm8_network:
+        aliases:
+          - ${NAABUM8_HOSTNAME}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "netstat -an | grep -c 8001 > /dev/null; if [ 0 != $? ]; then exit 1; else exit 0; fi",
+        ]
+      interval: 30s
+      retries: 10
+      start_period: 5s
+      timeout: 30s
+    depends_on:
+      rabbitmqm8:
+        condition: service_healthy
+        restart: true
+      postgresqlm8:
+        condition: service_healthy
+        restart: true
+      katanam8:
+        condition: service_healthy
+        restart: true
+    restart: on-failure:3
+  katanam8:
+    container_name: katanam8
+    build:
+      context: services/katanam8
+    environment:
+      SERVICEM8_NAME: "katanam8"
+      RABBITMQ_HOSTNAME: ${RABBITMQ_HOSTNAME}
+      POSTGRESQL_HOSTNAME: ${POSTGRESQL_HOSTNAME}
+      POSTGRESQL_USERNAME: ${POSTGRESQL_NON_ROOT_USERNAME}
+      POSTGRESQL_DB: ${POSTGRESQL_DB}
+      KATANAM8_HOSTNAME: ${KATANAM8_HOSTNAME}
+      KATANAM8_URL: ${KATANAM8_URL}
+      NUM8_HOSTNAME: ${NUM8_HOSTNAME}
+      NUM8_URL: ${NUM8_URL}
+    secrets:
+      - postgresql_user_password
+      - rabbitmq_username
+      - rabbitmq_password
+    ports:
+      - 8002:8002
+    expose:
+      - "8002/tcp"
+    volumes:
+      - ./services/katanam8/app/log:/app/log
+      - ./services/katanam8/app/tmp:/app/tmp
+      - ./services/katanam8/app/configs:/app/configs
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "netstat -an | grep -c 8002 > /dev/null; if [ 0 != $? ]; then exit 1; else exit 0; fi",
+        ]
+      interval: 30s
+      retries: 10
+      start_period: 5s
+      timeout: 30s
+    depends_on:
+      rabbitmqm8:
+        condition: service_healthy
+        restart: true
+      postgresqlm8:
+        condition: service_healthy
+        restart: true
+      num8:
+        condition: service_healthy
+        restart: true
+    networks:
+      cptm8_network:
+        aliases:
+          - ${KATANAM8_HOSTNAME}
+    restart: on-failure:3
+  num8:
+    container_name: num8
+    build:
+      context: services/num8
+    environment:
+      SERVICEM8_NAME: "num8"
+      RABBITMQ_HOSTNAME: ${RABBITMQ_HOSTNAME}
+      POSTGRESQL_HOSTNAME: ${POSTGRESQL_HOSTNAME}
+      POSTGRESQL_USERNAME: ${POSTGRESQL_NON_ROOT_USERNAME}
+      POSTGRESQL_DB: ${POSTGRESQL_DB}
+      ASMM8_HOSTNAME: ${ASMM8_HOSTNAME}
+      ASMM8_URL: ${ASMM8_URL}
+      NUM8_HOSTNAME: ${NUM8_HOSTNAME}
+      NUM8_URL: ${NUM8_URL}
+    secrets:
+      - postgresql_user_password
+      - rabbitmq_username
+      - rabbitmq_password
+    ports:
+      - 8003:8003
+    expose:
+      - "8003/tcp"
+    volumes:
+      - ./services/num8/app/log:/app/log
+      - ./services/num8/app/tmp:/app/tmp
+      - ./services/num8/app/configs:/app/configs
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "netstat -an | grep -c 8003 > /dev/null; if [ 0 != $? ]; then exit 1; else exit 0; fi",
+        ]
+      interval: 30s
+      retries: 10
+      start_period: 5s
+      timeout: 30s
+    depends_on:
+      rabbitmqm8:
+        condition: service_healthy
+        restart: true
+      postgresqlm8:
+        condition: service_healthy
+        restart: true
+    networks:
+      cptm8_network:
+        aliases:
+          - ${NUM8_HOSTNAME}
+    restart: on-failure:3
+  reportingm8:
+    container_name: reportingm8
+    build:
+      context: services/reportingm8
+    environment:
+      SERVICEM8_NAME: "reportingm8"
+      RABBITMQ_HOSTNAME: ${RABBITMQ_HOSTNAME}
+      POSTGRESQL_HOSTNAME: ${POSTGRESQL_HOSTNAME}
+      POSTGRESQL_USERNAME: ${POSTGRESQL_NON_ROOT_USERNAME}
+      POSTGRESQL_DB: ${POSTGRESQL_DB}
+      REPORTINGM8_HOSTNAME: ${REPORTINGM8_HOSTNAME}
+      REPORTINGM8_URL: ${REPORTINGM8_URL}
+      SMTP_SERVER: ${SMTP_SERVER}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_EMAILSENDER: ${SMTP_EMAILSENDER}
+      AWS_BUCKET_REGION: ${AWS_BUCKET_REGION}
+      AWS_BUCKET_NAME: ${AWS_BUCKET_NAME}
+      DASHBOARDM8_URL: ${DASHBOARDM8_URL}
+      COMPANY_NAME: ${COMPANY_NAME}
+    secrets:
+      - postgresql_user_password
+      - rabbitmq_username
+      - rabbitmq_password
+      - smtp_username
+      - smtp_password
+      - aws_key
+      - aws_secret
+    ports:
+      - 8004:8004
+    expose:
+      - "8004/tcp"
+    volumes:
+      - ./services/reportingm8/app/log:/app/log
+      - ./services/reportingm8/app/tmp:/app/tmp
+      - ./services/reportingm8/app/configs:/app/configs
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "netstat -an | grep -c 8004 > /dev/null; if [ 0 != $? ]; then exit 1; else exit 0; fi",
+        ]
+      interval: 30s
+      retries: 10
+      start_period: 5s
+      timeout: 30s
+    depends_on:
+      rabbitmqm8:
+        condition: service_healthy
+        restart: true
+      postgresqlm8:
+        condition: service_healthy
+        restart: true
+      asmm8:
+        condition: service_healthy
+        restart: true
+    networks:
+      cptm8_network:
+        aliases:
+          - ${REPORTINGM8_HOSTNAME}
+    restart: on-failure:3
+    # extra_hosts:
+    #   - host.docker.internal:host-gateway
+# Named volumes for data persistence
+volumes:
+  postgresql_data:
+    name: cptm8_postgresql_data
+  mongodb_1_data:
+    name: cptm8_mongodb_1_data
+  mongodb_1_config:
+    name: cptm8_mongodb_1_config
+  mongodb_1_shared:
+    name: cptm8_mongodb_1_shared
+  mongodb_2_data:
+    name: cptm8_mongodb_2_data
+  mongodb_2_config:
+    name: cptm8_mongodb_2_config
+  mongodb_2_shared:
+    name: cptm8_mongodb_2_shared
+  mongodb_3_data:
+    name: cptm8_mongodb_3_data
+  mongodb_3_config:
+    name: cptm8_mongodb_3_config
+  mongodb_3_shared:
+    name: cptm8_mongodb_3_shared
+  opensearch_data1:
+    name: cptm8_opensearch-data1
+  opensearch_data2:
+    name: cptm8_opensearch-data2
+
+# Docker Secrets - Backend only
+secrets:
+  # Rabbitmq secrets
+  rabbitmq_username:
+    file: ./secrets/rabbitmq_username.txt
+  rabbitmq_password:
+    file: ./secrets/rabbitmq_password.txt
+  # Database secrets
+  postgresql_root_password:
+    file: ./secrets/postgresql_root_password.txt
+  postgresql_user_password:
+    file: ./secrets/postgresql_user_password.txt
+  postgresql_database_url:
+    file: ./secrets/postgresql_database_url.txt
+  mongodb_root_password:
+    file: ./secrets/mongodb_root_password.txt
+  mongodb_user_password:
+    file: ./secrets/mongodb_user_password.txt
+  opensearch_admin_password:
+    file: ./secrets/opensearch_admin_password.txt
+  # SMTP secrets
+  smtp_username:
+    file: ./secrets/smtp_username.txt
+  smtp_password:
+    file: ./secrets/smtp_password.txt
+  # AWS secrets
+  aws_key:
+    file: ./secrets/aws_key.txt
+  aws_secret:
+    file: ./secrets/aws_secret.txt
+
+# Shared network - will be used by frontend
+networks:
+  cptm8_network:
+    name: cptm8_network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+          gateway: 172.25.0.1

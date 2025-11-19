@@ -1,0 +1,137 @@
+name: cptm8-frontend
+services:
+  # SocketM8 service
+  socketm8:
+    container_name: cptm8-socketm8
+    hostname: socketm8-1
+    build:
+      context: services/socketm8
+      dockerfile: dockerfile
+      # secrets:
+      #   - build_database_urls
+    secrets:
+      - postgresql_database_url
+      - mongodb_database_url
+      - rabbitmq_url
+      - smtp_username
+      - smtp_password
+    ports:
+      - "4000:${SOCKETM8_PORT}"
+    networks:
+      - cptm8_network
+    # Note: Backend services (PostgreSQL, MongoDB, RabbitMQ) must be running
+    # Dependencies handled by backend compose startup order or frontend-only mode checks
+    environment:
+      # Runtime environment variables
+      NODE_ENV: ${NODE_ENV}
+      # SocketM8 port
+      PORT: ${SOCKETM8_PORT}
+      # Database URLs - loaded at runtime from secrets
+      # PPG_DATABASE_URL and PMG_DATABASE_URL are set from secrets in CMD
+      # Rabbit secrets - loaded at runtime from secrets
+      # RabbitMQ_URL is set from secrets in CMD
+      RabbitMQ_EXCHANGE: ${RabbitMQ_EXCHANGE}
+      # SMTP credentials
+      SMTP_SERVER: ${SMTP_SERVER}
+      SMTP_PORT: ${SMTP_PORT}
+      # SMTP_USERNAME and SMTP_PASSWORD are set from secrets in CMD
+      SMTP_EMAILSENDER: ${SMTP_EMAILSENDER}
+      # Application settings
+      NEXT_DASHBOARD_URL: ${NEXT_DASHBOARD_URL}
+      USER_EMAIL_DOMAIN: ${USER_EMAIL_DOMAIN}
+      CORS: ${CORS}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://socketm8-1:${SOCKETM8_PORT}/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: on-failure:3
+  # DashboardM8 Web Application
+  dashboardm8:
+    container_name: cptm8-dashboard
+    hostname: ${DASHBOARDM8_HOSTNAME}
+    build:
+      context: services/dashboardm8
+      dockerfile: dockerfile
+      args:
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL} # Next.js needs these variables at build time to bake them into the JavaScript bundle.
+      secrets:
+        - build_database_urls
+    environment:
+      # Runtime environment variables
+      NODE_ENV: ${NODE_ENV}
+      # DashboardM8 port
+      PORT: ${DASHBOARDM8_PORT}
+      SMTP_SERVER: ${SMTP_SERVER}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_EMAILSENDER: ${SMTP_EMAILSENDER}
+      # Cloud storage
+      CLOUD_PROVIDER: ${CLOUD_PROVIDER}
+      # Application settings
+      NEXT_DASHBOARD_URL: ${NEXT_DASHBOARD_URL}
+      USER_EMAIL_DOMAIN: ${USER_EMAIL_DOMAIN}
+    secrets:
+      - postgresql_database_url
+      - mongodb_database_url
+      - auth_secret
+      - google_client_id
+      - google_client_secret
+      - smtp_username
+      - smtp_password
+      - aws_key
+      - aws_secret
+    ports:
+      - "3000:${DASHBOARDM8_PORT}"
+    networks:
+      - cptm8_network
+    # Note: Backend services (PostgreSQL, MongoDB, RabbitMQ) must be running
+    # Dependencies handled by backend compose startup order or frontend-only mode checks
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://${DASHBOARDM8_HOSTNAME}:${DASHBOARDM8_PORT}/api/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: on-failure:3
+
+# Docker Secrets - Loaded from files
+secrets:
+  # Build-time secrets
+  build_database_urls:
+    file: ./.env.build
+  # Database connection secrets (for application use)
+  postgresql_database_url:
+    file: ./secrets/postgresql_database_url.txt
+  mongodb_database_url:
+    file: ./secrets/mongodb_database_url.txt
+  # RabbitMQ connection secret
+  rabbitmq_url:
+    file: ./secrets/rabbitmq_url.txt
+  # Application secrets
+  auth_secret:
+    file: ./secrets/auth_secret.txt
+  google_client_id:
+    file: ./secrets/google_client_id.txt
+  google_client_secret:
+    file: ./secrets/google_client_secret.txt
+  smtp_username:
+    file: ./secrets/smtp_username.txt
+  smtp_password:
+    file: ./secrets/smtp_password.txt
+  aws_key:
+    file: ./secrets/aws_key.txt
+  aws_secret:
+    file: ./secrets/aws_secret.txt
+networks:
+  cptm8_network:
+    name: cptm8_network
+    external: true # Uses network created by backend

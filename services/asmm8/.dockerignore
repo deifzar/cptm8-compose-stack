@@ -1,0 +1,13 @@
+*/app/log/*.log
+*/app/log/*.log.gz
+*/app/tmp/*
+*/app/configs/*
+*.md
+.env*
+.vscode
+.idea
+dockerfile
+Dockerfile
+.dockerignore
+.git
+.gitignore

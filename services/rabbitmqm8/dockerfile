@@ -1,0 +1,4 @@
+FROM rabbitmq:4.0.3-management
+ENV RABBITMQ_CONF_ENV_FILE="/etc/rabbitmq/rabbitmq-env.conf"
+COPY rabbitmq-env.conf /etc/rabbitmq/
+COPY advanced.config /etc/rabbitmq/
